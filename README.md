@@ -1,130 +1,88 @@
 # omarchy-agents
 
-Custom drop-in replacement for Omarchy's first-party agents panel
-(`omarchy.agents`), installed as the `<username>.agents` plugin slot, plus
-user-side usage collectors the panel drives on its own refresh cadence.
+A drop-in replacement for [Omarchy](https://omarchy.org)'s built-in agents
+toolbar (usage meters for AI coding subscriptions), extended with custom
+providers — plus an orchestrator that drives everything on the panel's own
+refresh cadence.
 
-> **A personal plugin, but an extensible one.** It ships my providers —
-> Z.ai quotas and an API-key Claude Code (no Anthropic OAuth) — and yours
-> will differ. The design point is that *providers don't require forking
-> anything*: the panel renders whatever JSON records land in the usage
-> directory, and [`AGENTS.md`](AGENTS.md) is a complete protocol for an AI
-> agent to research your provider's usage API and add its collector
-> end to end. Fork this, run `./install.sh`, then just ask an agent to
-> "add a provider for \<your service\>" in the repo. The architecture
+Ships with **Z.ai (GLM Coding Plan)** support and an **API-key-aware Claude
+tab**. Designed to be extended: adding a provider is one script, and
+[`AGENTS.md`](AGENTS.md) is a complete protocol for an AI agent to research
+a provider's usage API and wire it in for you.
+
+## Highlights
+
+| Feature | What you get |
+|---|---|
+| **Z.ai provider** | Session (5-hour) and weekly quota meters, monthly tool-call count ("7 / 1000"), GLM Coding plan label, brand mark |
+| **API-key Claude** | Claude Code on an API key shows a neutral "API key" hero instead of the permanent OAuth "Waiting for auth" warning — transformed in-flight, so the warning never even flashes |
+| **Unified cadence** | One orchestrator (`omarchy-agent-usage-all`) runs the packaged collectors *and* user collectors on the panel's native refresh (timer, manual `r`, network retry) — no side timers |
+| **Pace tick** | Opt-in (`showPace`): a tick on each meter marks where linear usage *should* be; fill past the tick = burning faster than the window replenishes |
+| **Tab order** | `providerOrder` setting; first entry is the tab the panel opens on |
+| **Count-based limits** | `countText` on a limit row shows "7 / 1000" instead of a misleading percentage |
+| **Graceful degradation** | Without the installer's scripts (e.g. marketplace `plugin add` alone), the panel detects the missing orchestrator and falls back to stock behavior |
+
+> **Personal config, published as reference.** The collectors encode my
+> setup (Claude Code on a Z.ai plan, no Anthropic OAuth); yours will differ —
+> fork it and ask an agent to add your provider. The architecture
 > (orchestrator + record contract) is the reusable part; the collectors are
 > examples.
 
-## What this adds over the stock plugin
+## Quick start
 
-| Piece | File | What it does |
+```bash
+git clone https://github.com/noviadi/omarchy-agents ~/Developments/code/omarchy-agents
+~/Developments/code/omarchy-agents/install.sh
+```
+
+Requires Omarchy 4.x and, for the Z.ai collector, a credential it can find
+(`ZAI_API_KEY`, `~/.config/zai/key.json`, or Claude Code on a Z.ai base URL).
+Full details, the marketplace-only path, updates, and removal:
+[`docs/INSTALL.md`](docs/INSTALL.md).
+
+## Configuration
+
+Settings live in the widget's entry in `~/.config/omarchy/shell.json`
+(hot-reloads on save). Note `omarchy bar set` mangles array values — edit
+the file directly.
+
+```json
+{
+  "id": "<username>.agents",
+  "refreshIntervalSec": 300,
+  "providerOrder": ["zai", "claude", "codex", "fireworks"],
+  "showPace": true,
+  "providers": { "fireworks": { "enabled": false } }
+}
+```
+
+| Key | Default | What it does |
 |---|---|---|
-| **Z.ai provider** | `bin/omarchy-agent-usage-zai` | Quota meters from `api.z.ai/api/monitor/usage/quota/limit` (5-hour session, 7-day weekly, monthly web searches) + plan name from `/api/biz/subscription/list`. Key: `ZAI_API_KEY`, `~/.config/zai/key.json`, or `ANTHROPIC_AUTH_TOKEN` in `~/.claude/settings.json` (when Claude Code runs on Z.ai). |
-| **Z.ai marks** | `assets/zai.svg`, `assets/zai-light.svg` | White/black brand marks (Simple Icons, slug `zdotai`, CC0). |
-| **API-key Claude** | `bin/omarchy-agent-usage-all` (claude branch) | Claude Code here runs on an API key, so OAuth limits never exist. The orchestrator excludes claude from the packaged update and writes that record itself, transforming "Waiting for auth" → neutral "API key" hero **in-flight** — the warning never lands on disk, so the panel never flashes it. `bin/omarchy-agent-claude-apikey-fixup` remains as a manual healing tool. |
-| **Orchestrator** | `bin/omarchy-agent-usage-all` | Wraps the packaged `omarchy-agent-usage-update` (minus claude), runs the claude collector + transform, and fans out every `~/.local/bin/omarchy-agent-usage-*` user collector — all concurrently. Same flags/contract as the packaged script. |
-| **Patched panel** | `Main.qml` | The refresh command is `omarchy-agent-usage-all` instead of the packaged update, so every provider refreshes on the panel's native cadence (timer, manual `r`, `retryAdvised` 30s retry). A startup probe falls back to the packaged update when the orchestrator is absent (e.g. a marketplace `plugin add` without the installer), keeping stock providers alive. |
-| **Tab order** | `Main.qml` | Stock order is alphabetical by id. Set `providerOrder` (array of ids; listed first in that order, unlisted alphabetical after) in the widget's `shell.json` entry — the first entry becomes the tab the panel opens on. `omarchy bar set` mangles arrays, so edit `~/.config/omarchy/shell.json` directly. |
+| `refreshIntervalSec` | `900` | Refresh cadence for every provider |
+| `providerOrder` | alphabetical | Tab order; first entry is the default tab |
+| `showPace` | `false` | Pace tick on limit meters (rationing cue) |
+| `providers.<id>.enabled` | `true` | Hide a provider and skip its collector |
+| `syncMode` / `syncDir` / … | off | Cross-machine usage aggregation (stock feature, see [`docs/PANEL.md`](docs/PANEL.md)) |
 
-Everything else in the QML is a verbatim copy of
-`/usr/share/omarchy/shell/plugins/agents/` at Omarchy 4.0.0 — the panel is
-provider-agnostic by design: it renders whatever JSON records land in
-`~/.local/state/omarchy/agents/usage/`.
+## Extending
 
-## Install
+- **Add a provider** — point an AI agent at [`AGENTS.md`](AGENTS.md): the
+  full protocol (research the usage API → write the collector → verify).
+  By hand: an executable `bin/omarchy-agent-usage-<id>` printing the record
+  schema, optionally `assets/<id>.svg`, then `./install.sh`.
+- **Keyboard** — the panel has IPC; e.g. bind
+  `omarchy-shell omarchy.agents toggle` to a Hyprland key for open/close.
 
-### Marketplace install (`omarchy plugin add`) — panel only
+## Documentation
 
-```bash
-omarchy plugin add https://github.com/noviadi/omarchy-agents.git --enable --yes
-```
+| Doc | Contents |
+|---|---|
+| [`docs/INSTALL.md`](docs/INSTALL.md) | Install paths (full / marketplace), updating, removal, syncing with upstream Omarchy |
+| [`AGENTS.md`](AGENTS.md) | Provider protocol: record schema, collector contract, research playbook |
+| [`docs/PANEL.md`](docs/PANEL.md) | The upstream agents panel README (Omarchy 4.0.0), kept for reference |
 
-This installs **only the panel**. `omarchy plugin add` clones the plugin and
-enables it — it has no hook to run this repo's installer, and no mechanism to
-deploy executables. The panel detects the missing orchestrator and **falls
-back to the stock packaged collectors**, so you get a working
-claude/codex/fireworks panel — but:
+## License
 
-> ⚠️ **The custom providers are NOT active after `plugin add` alone.**
-> No Z.ai tab, no API-key Claude transform — until you do the manual step:
->
-> ```bash
-> git clone https://github.com/noviadi/omarchy-agents ~/Developments/code/omarchy-agents
-> ~/Developments/code/omarchy-agents/install.sh    # deploys bin/* to ~/.local/bin
-> ```
->
-> The panel picks the orchestrator up on the next shell restart.
-
-### Full install (recommended)
-
-1. **Requirements**: Omarchy 4.x (quattro, ships the agents plugin) and a
-   Z.ai credential the collector can find — one of:
-   - `ANTHROPIC_AUTH_TOKEN` + `ANTHROPIC_BASE_URL` (…z.ai) in
-     `~/.claude/settings.json` (i.e. Claude Code set up on the coding plan)
-   - `ZAI_API_KEY` in the environment
-   - `{"apiKey": "…"}` in `~/.config/zai/key.json`
-2. **Clone this repo** anywhere:
-   ```bash
-   git clone <repo-url> ~/Developments/code/omarchy-agents
-   cd ~/Developments/code/omarchy-agents
-   ```
-3. **Run the installer**:
-   ```bash
-   ./install.sh
-   ```
-   It handles everything: creates the `<username>.agents` plugin slot from
-   the first-party plugin (switching the bar to it) if not present, installs
-   `bin/*` to `~/.local/bin`, deploys the plugin payload into the slot,
-   removes any obsolete systemd units from older setups, and restarts the
-   shell.
-4. **Optional** — snappier quota meters (default panel cadence is 15 min):
-   ```bash
-   omarchy bar set "$(id -un).agents" refreshIntervalSec 300 --json
-   ```
-
-The shell restart triggers a refresh immediately; the Z.ai tab appears as
-soon as `~/.local/state/omarchy/agents/usage/zai.json` lands (first run
-takes a few seconds). Claude Code token history shows up on its tab the
-first time Claude Code has run on the machine.
-
-### Updating an existing install
-
-Re-run `./install.sh` after editing anything in this repo. Plugin-code
-changes need the shell restart the script performs; `bin/` scripts are
-picked up on the next refresh without one.
-
-### Remove
-
-```bash
-omarchy plugin remove "$(id -un).agents"   # delete the plugin slot, bar falls back to stock omarchy.agents
-rm -f ~/.local/bin/omarchy-agent-usage-{all,zai} ~/.local/bin/omarchy-agent-claude-apikey-fixup
-rm -rf ~/.local/state/omarchy/agents/usage/zai.json   # optional: drop the Z.ai record
-```
-
-After removal the stock agents panel takes the bar slot back on the next
-shell restart; claude/codex/fireworks records keep refreshing from the
-packaged collectors.
-
-## Adding another provider
-
-Point an AI agent at [`AGENTS.md`](AGENTS.md) — it contains the full
-protocol: research the provider's usage API, write the collector, verify it
-end to end. By hand: an executable `omarchy-agent-usage-<id>` in `bin/`
-that prints one record (schema in `AGENTS.md`), optionally
-`assets/<id>.svg`, then `./install.sh`. The panel discovers the new
-`usage/<id>.json` on its next refresh.
-
-## Sync with upstream
-
-The plugin copy is frozen at Omarchy 4.0.0. When upstream improves the
-agents panel:
-
-```bash
-for f in Main.qml Panel.qml Agent.qml; do
-  diff "/usr/share/omarchy/shell/plugins/agents/$f" "$f"
-done
-diff -r /usr/share/omarchy/shell/plugins/agents/assets assets
-```
-
-Re-apply the one-line `updateCommand` patch in `Main.qml` (and the `zai.svg`
-assets) after copying changes over.
+MIT — see [`LICENSE`](LICENSE). The QML is a modified copy of Omarchy's
+agents panel; brand marks are from Simple Icons (CC0). Attribution in the
+license file.
