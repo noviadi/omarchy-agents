@@ -13,6 +13,7 @@
 set -u
 
 PACKAGED_UPDATE=/usr/share/omarchy/bin/omarchy-agent-usage-update
+PACKAGED_CLAUDE=/usr/share/omarchy/bin/omarchy-agent-usage-claude
 USAGE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/usage"
 USER_BIN="${HOME}/.local/bin"
 
@@ -59,12 +60,44 @@ collect() {
   write_record "$agent" "$record"
 }
 
-# --- packaged providers (claude, codex, fireworks, ...) ---------------------
-"$PACKAGED_UPDATE" "$@"
+# --- claude: own the record, never write the auth warning --------------------
+# Claude Code on an API key has no OAuth usage endpoint, so the packaged
+# collector permanently reports "Waiting for auth". Post-processing the file
+# after the packaged update leaves a window where the warning is on disk and
+# the panel (which watches the file) renders it. Instead, exclude claude from
+# the packaged run and write a fixed-up record in one step, so the warning
+# never lands. The transform only fires when the collector actually reported
+# the auth wait — a signed-in OAuth machine keeps its real limits and plan.
+claude_args=("$@")
+if wanted "claude"; then
+  # We write the claude record ourselves below; the packaged run handles the
+  # rest. When claude is not wanted, the caller's --except/only args already
+  # keep the packaged loop away from it.
+  claude_args+=("--except" "claude")
+fi
+
+collect_claude() {
+  local record fixed
+  if ! record=$("$PACKAGED_CLAUDE" "${flags[@]}" 2>/dev/null) || [[ -z $record ]] \
+    || ! fixed=$(jq 'if .usageStatusText == "Waiting for auth"
+        then .usageStatusText = "" | .authHelpText = "" | .tierLabel = "API key"
+        else . end' <<<"$record" 2>/dev/null); then
+    echo "omarchy-agent-usage-all: claude collector failed" >&2
+    return 1
+  fi
+  write_record "claude" "$fixed"
+}
+
+# --- packaged providers (codex, fireworks, ...) ------------------------------
+"$PACKAGED_UPDATE" "${claude_args[@]}"
 packaged_status=$?
 
 # --- user providers ----------------------------------------------------------
 pids=()
+if wanted "claude"; then
+  collect_claude &
+  pids+=($!)
+fi
 for collector in "$USER_BIN"/omarchy-agent-usage-*; do
   [[ -x $collector ]] || continue
   agent="${collector##*/omarchy-agent-usage-}"
@@ -79,11 +112,5 @@ status=$packaged_status
 for pid in "${pids[@]}"; do
   wait "$pid" || status=1
 done
-
-# --- cosmetic fixes ----------------------------------------------------------
-# Claude Code on an API key has no OAuth usage endpoint, so the packaged
-# collector permanently reports "Waiting for auth". Rewrite that record to a
-# neutral "API key" hero. Idempotent: exits 0 without writing when clean.
-[[ -x $USER_BIN/omarchy-agent-claude-apikey-fixup ]] && "$USER_BIN/omarchy-agent-claude-apikey-fixup"
 
 exit $status

@@ -10,8 +10,8 @@ usage collectors the panel drives on its own refresh cadence.
 |---|---|---|
 | **Z.ai provider** | `bin/omarchy-agent-usage-zai` | Quota meters from `api.z.ai/api/monitor/usage/quota/limit` (5-hour session, 7-day weekly, monthly web searches) + plan name from `/api/biz/subscription/list`. Key: `ZAI_API_KEY`, `~/.config/zai/key.json`, or `ANTHROPIC_AUTH_TOKEN` in `~/.claude/settings.json` (when Claude Code runs on Z.ai). |
 | **Z.ai marks** | `plugin/assets/zai.svg`, `zai-light.svg` | White/black brand marks (Simple Icons, slug `zdotai`, CC0). |
-| **API-key Claude** | `bin/omarchy-agent-claude-apikey-fixup` | Claude Code here runs on an API key, so OAuth limits never exist; rewrites the claude record to a neutral "API key" hero instead of the red "Waiting for auth" card. |
-| **Orchestrator** | `bin/omarchy-agent-usage-all` | Wraps the packaged `omarchy-agent-usage-update`, fans out every `~/.local/bin/omarchy-agent-usage-*` user collector, then applies the fixup. Same flags/contract as the packaged script. |
+| **API-key Claude** | `bin/omarchy-agent-usage-all` (claude branch) | Claude Code here runs on an API key, so OAuth limits never exist. The orchestrator excludes claude from the packaged update and writes that record itself, transforming "Waiting for auth" → neutral "API key" hero **in-flight** — the warning never lands on disk, so the panel never flashes it. `bin/omarchy-agent-claude-apikey-fixup` remains as a manual healing tool. |
+| **Orchestrator** | `bin/omarchy-agent-usage-all` | Wraps the packaged `omarchy-agent-usage-update` (minus claude), runs the claude collector + transform, and fans out every `~/.local/bin/omarchy-agent-usage-*` user collector — all concurrently. Same flags/contract as the packaged script. |
 | **Patched panel** | `plugin/Main.qml` | The one change: the refresh command is `omarchy-agent-usage-all` instead of the packaged update, so every provider refreshes on the panel's native cadence (timer, manual `r`, `retryAdvised` 30s retry). |
 
 Everything else in `plugin/` is a verbatim copy of
