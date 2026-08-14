@@ -787,6 +787,7 @@ Panel {
     property bool alarming: false
     property real paceMark: -1
     property real thickness: Math.max(Style.space(4), Math.round(Style.spacing.controlHeight * 0.14))
+    readonly property real tickWidth: Math.max(2, Math.round(thickness * 0.28))
 
     implicitHeight: thickness
 
@@ -810,15 +811,28 @@ Panel {
       }
     }
 
-    // The pace notch: surface-colored so it reads as a gap cut through both
-    // the track and the fill, wherever the fill currently ends.
+    // The pace tick: a foreground core over a surface halo, protruding a
+    // little past the track. The core reads on the faint track tint and the
+    // panel surface; the halo reads as a gap when the fill has passed the
+    // tick. Visible in any theme, on either side of the fill.
     Rectangle {
       visible: meter.paceMark >= 0
-      width: Math.max(2, Math.round(meter.thickness * 0.28))
-      height: meterTrack.height
+      width: meter.tickWidth + 2
+      height: meterTrack.height + 4
+      y: -2
       radius: width / 2
       x: meterTrack.width * meter.paceMark - width / 2
       color: root.surface
+    }
+
+    Rectangle {
+      visible: meter.paceMark >= 0
+      width: meter.tickWidth
+      height: meterTrack.height + 4
+      y: -2
+      radius: width / 2
+      x: meterTrack.width * meter.paceMark - width / 2
+      color: root.foreground
     }
 
   }
