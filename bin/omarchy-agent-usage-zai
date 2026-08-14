@@ -114,15 +114,16 @@ def limit_row(entry: dict[str, Any]) -> dict[str, Any] | None:
   resets_at = iso_from_epoch_ms(entry.get("nextResetTime"))
 
   if kind == "TIME_LIMIT":
-    # Web searches are a monthly call count, not tokens. The panel shows
-    # countText ("7 / 1000") instead of a percentage; the meter still fills
-    # by used/allowance so it reads like every other limit row.
+    # The monthly MCP tool quota — web search, web reader, Zread — metered
+    # as a call count, not tokens. The panel shows countText ("7 / 1000")
+    # instead of a percentage; the meter still fills by used/allowance so it
+    # reads like every other limit row.
     allowance = float(entry.get("usage") or 0)
     used = float(entry.get("currentValue") or 0)
     if allowance <= 0:
       return None
     return {
-      "label": "Web search calls (monthly)",
+      "label": "Tool (monthly)",
       "percent": min(1.0, used / allowance),
       "resetsAt": resets_at,
       "countText": f"{int(used)} / {int(allowance)}",
@@ -196,10 +197,22 @@ def collect() -> dict[str, Any]:
     raise
 
   record["tierLabel"] = plan_label(None, quota)
+  # Display order is fixed regardless of API order: the token windows first,
+  # shortest to longest (Session, Weekly), then the monthly tool quota.
+  token_windows = []
+  tool_rows = []
   for entry in (quota or {}).get("limits") or []:
-    row = limit_row(entry) if isinstance(entry, dict) else None
-    if row:
-      record["limits"].append(row)
+    if not isinstance(entry, dict):
+      continue
+    row = limit_row(entry)
+    if row is None:
+      continue
+    if entry.get("type") == "TIME_LIMIT":
+      tool_rows.append(row)
+    else:
+      token_windows.append((window_seconds(entry), row))
+  token_windows.sort(key=lambda pair: pair[0])
+  record["limits"] = [row for _, row in token_windows] + tool_rows
 
   # Plan name is cosmetic; a failure here must not blank the meters.
   try:
