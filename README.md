@@ -4,6 +4,17 @@ Custom drop-in replacement for Omarchy's first-party agents panel
 (`omarchy.agents`), installed as the `<username>.agents` plugin slot, plus
 user-side usage collectors the panel drives on its own refresh cadence.
 
+> **Personal plugin — not publishable as-is.** The zai collector and the
+> claude API-key transform encode this machine's setup: Claude Code running
+> on a Z.ai coding plan via `ANTHROPIC_AUTH_TOKEN` (no Anthropic OAuth).
+> Most people sign into Claude with OAuth and don't use Z.ai — for them the
+> claude transform would do nothing (harmless, it only fires on
+> "Waiting for auth") and the zai collector would never produce a record,
+> but the frozen plugin copy would still cost them upstream panel updates.
+> The generally-useful pieces belong upstream instead: a `zai` collector +
+> assets in basecamp/omarchy (template: Fireworks PR #6488), and API-key
+> awareness in the claude collector. This repo stays personal.
+
 ## What this adds over the stock plugin
 
 | Piece | File | What it does |
