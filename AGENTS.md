@@ -91,7 +91,11 @@ count-based quotas (calls, requests — anything where "7 / 1000" says more
 than a percentage), add `countText`: the panel shows it instead of the
 percent figure while the meter still fills by `percent`. A
 prepaid/balance provider can instead set
-`balance: {remaining, funded, currency, spent, estimated}`.
+`balance: {remaining, funded, currency, spent, estimated}`. Optional
+`windowMs` (int) gives the window's exact length — the panel draws a pace
+tick on the meter at the elapsed fraction of the window, so fill past the
+tick means burning faster than the window replenishes. Without it the
+span is parsed from the label ("5-hour", "7-day", "monthly").
 
 ### The two ways to get data
 

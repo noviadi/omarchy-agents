@@ -15,6 +15,7 @@ USER_BIN="$HOME/.local/bin"
 # --- scripts -----------------------------------------------------------------
 mkdir -p "$USER_BIN"
 for script in "$REPO_DIR"/bin/*; do
+  [[ -f $script ]] || continue
   install -Dm755 "$script" "$USER_BIN/$(basename "$script")"
 done
 

@@ -130,6 +130,8 @@ def limit_row(entry: dict[str, Any]) -> dict[str, Any] | None:
       "percent": min(1.0, used / allowance),
       "resetsAt": resets_at,
       "countText": f"{int(used)} / {int(allowance)}",
+      # Exact window length for the panel's pace tick.
+      "windowMs": round(window_seconds(entry) * 1000),
     }
 
   if kind != "TOKENS_LIMIT":
@@ -147,7 +149,13 @@ def limit_row(entry: dict[str, Any]) -> dict[str, Any] | None:
     return None
   if percent < 0:
     return None
-  return {"label": label, "percent": percent, "resetsAt": resets_at}
+  return {
+    "label": label,
+    "percent": percent,
+    "resetsAt": resets_at,
+    # Exact window length for the panel's pace tick.
+    "windowMs": round(seconds * 1000),
+  }
 
 
 def plan_label(subscriptions: Any, quota: Any) -> str:

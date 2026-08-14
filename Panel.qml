@@ -101,7 +101,7 @@ Panel {
   // and that beats reading it back out of the label: a model-scoped limit is
   // titled after its model, and a name like "Opus 5 (1M context)" would parse
   // as a one-minute window.
-  function limitWindow(label, percent, resetAt, title, countText) {
+  function limitWindow(label, percent, resetAt, title, countText, spanMs) {
     return {
       title: String(title || "") !== "" ? String(title) : windowTitle(label),
       percent: Number(percent),
@@ -109,7 +109,11 @@ Panel {
       // Count-based quotas (web-search calls, not tokens) read better as
       // "7 / 1000" than as a percentage of an allowance nobody thinks of
       // fractionally. The meter still fills by percent.
-      countText: String(countText || "")
+      countText: String(countText || ""),
+      // Window length in ms, for the pace tick: where linear usage "should"
+      // be by now. Collectors that know it exactly pass windowMs; otherwise
+      // it is parsed from the raw label (canonical titles carry no numbers).
+      spanMs: Number(spanMs) > 0 ? Number(spanMs) : 0
     }
   }
 
@@ -120,7 +124,8 @@ Panel {
     for (var i = 0; i < list.length; i++) {
       var entry = list[i] || {}
       var percent = Number(entry.percent)
-      if (percent >= 0) out.push(limitWindow(entry.label, percent, entry.resetsAt, entry.title, entry.countText))
+      if (percent >= 0) out.push(limitWindow(entry.label, percent, entry.resetsAt, entry.title, entry.countText,
+        Number(entry.windowMs) > 0 ? entry.windowMs : windowSpanMs(entry.label)))
     }
     return out
   }
@@ -706,6 +711,17 @@ Panel {
 
     readonly property bool alarming: window && window.percent >= 0.9
 
+    // The pace tick marks linear usage: elapsed fraction of the window. Fill
+    // short of the tick = rationing comfortably; fill past it = burning
+    // faster than the window replenishes. Hidden when the span or the reset
+    // is unknown, or the reset already passed (stale record).
+    readonly property real paceMark: {
+      if (!window || !(window.spanMs > 0)) return -1
+      var remaining = root.resetMsFor(window)
+      if (remaining <= 0 || remaining > window.spanMs) return -1
+      return root.clamp(1 - remaining / window.spanMs, 0, 1)
+    }
+
     spacing: Style.space(6)
 
     Item {
@@ -746,6 +762,7 @@ Panel {
       width: parent.width
       value: limitRow.window ? limitRow.window.percent : -1
       alarming: limitRow.alarming
+      paceMark: limitRow.paceMark
     }
 
     Text {
@@ -761,11 +778,14 @@ Panel {
     }
   }
 
-  // Rounded track showing the percentage of the allowance used.
+  // Rounded track showing the percentage of the allowance used. With
+  // paceMark (0..1) a thin notch marks where linear usage would be — a
+  // burndown line the fill races against.
   component Meter: Item {
     id: meter
     property real value: -1
     property bool alarming: false
+    property real paceMark: -1
     property real thickness: Math.max(Style.space(4), Math.round(Style.spacing.controlHeight * 0.14))
 
     implicitHeight: thickness
@@ -788,6 +808,17 @@ Panel {
       Behavior on width {
         NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
       }
+    }
+
+    // The pace notch: surface-colored so it reads as a gap cut through both
+    // the track and the fill, wherever the fill currently ends.
+    Rectangle {
+      visible: meter.paceMark >= 0
+      width: Math.max(2, Math.round(meter.thickness * 0.28))
+      height: meterTrack.height
+      radius: width / 2
+      x: meterTrack.width * meter.paceMark - width / 2
+      color: root.surface
     }
 
   }
