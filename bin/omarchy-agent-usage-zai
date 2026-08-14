@@ -124,6 +124,9 @@ def limit_row(entry: dict[str, Any]) -> dict[str, Any] | None:
       return None
     return {
       "label": "Tool (monthly)",
+      # The panel canonicalizes labels ("…monthly" would display as
+      # "Monthly"); an explicit title wins and says what the quota is.
+      "title": "Tool",
       "percent": min(1.0, used / allowance),
       "resetsAt": resets_at,
       "countText": f"{int(used)} / {int(allowance)}",
