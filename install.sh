@@ -7,7 +7,8 @@
 set -euo pipefail
 
 REPO_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-PLUGIN_ID="noviadi.agents"
+# omarchy plugin clone names the user copy <username>.<original>
+PLUGIN_ID="$(id -un).agents"
 PLUGIN_DEST="$HOME/.config/omarchy/plugins/$PLUGIN_ID"
 USER_BIN="$HOME/.local/bin"
 
@@ -18,9 +19,12 @@ for script in "$REPO_DIR"/bin/*; do
 done
 
 # --- plugin ------------------------------------------------------------------
-# The bar slot in ~/.config/omarchy/shell.json already points at noviadi.agents
-# (omarchy plugin clone omarchy.agents). This repo is now the source of truth
-# for that slot.
+# The bar slot must point at $PLUGIN_ID. On a fresh install it still says
+# omarchy.agents; cloning the first-party plugin creates the user-owned slot
+# and switches the bar to it. This repo is then the source of truth for it.
+if ! grep -q "\"$PLUGIN_ID\"" "$HOME/.config/omarchy/shell.json" 2>/dev/null; then
+  omarchy plugin clone omarchy.agents
+fi
 mkdir -p "$PLUGIN_DEST"
 rm -rf "${PLUGIN_DEST:?}"/*
 cp -r "$REPO_DIR/plugin/." "$PLUGIN_DEST/"

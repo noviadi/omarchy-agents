@@ -1,8 +1,8 @@
 # omarchy-agents
 
 Custom drop-in replacement for Omarchy's first-party agents panel
-(`omarchy.agents`), installed as the `noviadi.agents` plugin, plus user-side
-usage collectors the panel drives on its own refresh cadence.
+(`omarchy.agents`), installed as the `<username>.agents` plugin slot, plus
+user-side usage collectors the panel drives on its own refresh cadence.
 
 ## What this adds over the stock plugin
 
@@ -21,16 +21,42 @@ provider-agnostic by design: it renders whatever JSON records land in
 
 ## Install
 
-```bash
-./install.sh
-```
+### Fresh Omarchy install
 
-Copies `bin/*` to `~/.local/bin`, `plugin/` to
-`~/.config/omarchy/plugins/noviadi.agents/`, removes the obsolete systemd
-timer/watcher units, and rescans plugins.
+1. **Requirements**: Omarchy 4.x (quattro, ships the agents plugin) and a
+   Z.ai credential the collector can find — one of:
+   - `ANTHROPIC_AUTH_TOKEN` + `ANTHROPIC_BASE_URL` (…z.ai) in
+     `~/.claude/settings.json` (i.e. Claude Code set up on the coding plan)
+   - `ZAI_API_KEY` in the environment
+   - `{"apiKey": "…"}` in `~/.config/zai/key.json`
+2. **Clone this repo** anywhere:
+   ```bash
+   git clone <repo-url> ~/Developments/code/omarchy-agents
+   cd ~/Developments/code/omarchy-agents
+   ```
+3. **Run the installer**:
+   ```bash
+   ./install.sh
+   ```
+   It handles everything: creates the `<username>.agents` plugin slot from
+   the first-party plugin (switching the bar to it) if not present, installs
+   `bin/*` to `~/.local/bin`, deploys `plugin/` into the slot, removes any
+   obsolete systemd units from older setups, and restarts the shell.
+4. **Optional** — snappier quota meters (default panel cadence is 15 min):
+   ```bash
+   omarchy bar set "$(id -un).agents" refreshIntervalSec 300 --json
+   ```
 
-First-time setup (already done on this machine): `omarchy plugin clone
-omarchy.agents` creates the `noviadi.agents` slot this installs into.
+The shell restart triggers a refresh immediately; the Z.ai tab appears as
+soon as `~/.local/state/omarchy/agents/usage/zai.json` lands (first run
+takes a few seconds). Claude Code token history shows up on its tab the
+first time Claude Code has run on the machine.
+
+### Updating an existing install
+
+Re-run `./install.sh` after editing anything in this repo. Plugin-code
+changes need the shell restart the script performs; `bin/` scripts are
+picked up on the next refresh without one.
 
 ## Adding another provider
 
