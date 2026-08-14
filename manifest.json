@@ -35,6 +35,7 @@
         }
       },
       "refreshIntervalSec": 900,
+      "showPace": false,
       "syncMode": "Off",
       "syncDir": "",
       "syncFileName": "",
@@ -49,6 +50,13 @@
         "max": 3600,
         "step": 30,
         "defaultValue": 900
+      },
+      {
+        "key": "showPace",
+        "type": "boolean",
+        "label": "Show pace tick on limit meters",
+        "defaultValue": false,
+        "description": "Draws a tick on each limit meter at the elapsed fraction of the window; fill past the tick means usage is outrunning the window."
       },
       {
         "key": "syncMode",

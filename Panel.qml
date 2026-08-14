@@ -713,9 +713,11 @@ Panel {
 
     // The pace tick marks linear usage: elapsed fraction of the window. Fill
     // short of the tick = rationing comfortably; fill past it = burning
-    // faster than the window replenishes. Hidden when the span or the reset
-    // is unknown, or the reset already passed (stale record).
+    // faster than the window replenishes. Opt-in via the widget's shell.json
+    // entry ("showPace": true); hidden when the span or the reset is
+    // unknown, or the reset already passed (stale record).
     readonly property real paceMark: {
+      if (!(root.settings && root.settings.showPace === true)) return -1
       if (!window || !(window.spanMs > 0)) return -1
       var remaining = root.resetMsFor(window)
       if (remaining <= 0 || remaining > window.spanMs) return -1
