@@ -50,12 +50,12 @@ Item {
     if (JSON.stringify(ids) !== JSON.stringify(agentIds)) agentIds = ids
   }
 
-  // Tab order: providerOrder lists ids explicitly (listed first, in that
-  // order; unlisted stay alphabetical after them). providers[0] is the tab
-  // the panel opens on and the first switcher chip, so the first entry is
-  // the default tab.
+  // Tab order: alphabetical by id (stock behavior) unless providerOrder
+  // lists ids explicitly — listed first, in that order; unlisted stay
+  // alphabetical after them. providers[0] is the tab the panel opens on
+  // and the first switcher chip, so the first entry is the default tab.
   function applyProviderOrder(ids) {
-    var raw = setting("providerOrder", ["zai", "claude", "codex", "fireworks"])
+    var raw = setting("providerOrder", [])
     var order = []
     for (var i = 0; i < raw.length; i++) order.push(String(raw[i]))
     if (order.length === 0) return ids
