@@ -114,16 +114,18 @@ def limit_row(entry: dict[str, Any]) -> dict[str, Any] | None:
   resets_at = iso_from_epoch_ms(entry.get("nextResetTime"))
 
   if kind == "TIME_LIMIT":
-    # Web searches are a count, not a percentage of tokens; derive the meter
-    # from used/allowance so small usage is not lost to integer rounding.
+    # Web searches are a monthly call count, not tokens. The panel shows
+    # countText ("7 / 1000") instead of a percentage; the meter still fills
+    # by used/allowance so it reads like every other limit row.
     allowance = float(entry.get("usage") or 0)
     used = float(entry.get("currentValue") or 0)
     if allowance <= 0:
       return None
     return {
-      "label": "Web searches (monthly)",
+      "label": "Web search calls (monthly)",
       "percent": min(1.0, used / allowance),
       "resetsAt": resets_at,
+      "countText": f"{int(used)} / {int(allowance)}",
     }
 
   if kind != "TOKENS_LIMIT":

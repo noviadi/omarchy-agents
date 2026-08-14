@@ -80,10 +80,14 @@ views):
 | `updatedAt` | string | ISO 8601 UTC |
 | `usageStatusText` | string | **empty when healthy** — any non-empty value renders as a RED urgent card |
 
-Limits entries: `{label, percent, resetsAt}` — `percent` is **0..1** (0.11
-= 11%), `resetsAt` is ISO 8601 (convert epoch ms/s yourself). Good labels:
-`"Session (5-hour)"`, `"Weekly (7-day)"`. A prepaid/balance provider can
-instead set `balance: {remaining, funded, currency, spent, estimated}`.
+Limits entries: `{label, percent, resetsAt, countText?}` — `percent` is
+**0..1** (0.11 = 11%), `resetsAt` is ISO 8601 (convert epoch ms/s
+yourself). Good labels: `"Session (5-hour)"`, `"Weekly (7-day)"`. For
+count-based quotas (calls, requests — anything where "7 / 1000" says more
+than a percentage), add `countText`: the panel shows it instead of the
+percent figure while the meter still fills by `percent`. A
+prepaid/balance provider can instead set
+`balance: {remaining, funded, currency, spent, estimated}`.
 
 ### The two ways to get data
 

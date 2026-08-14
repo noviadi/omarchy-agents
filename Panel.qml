@@ -101,11 +101,15 @@ Panel {
   // and that beats reading it back out of the label: a model-scoped limit is
   // titled after its model, and a name like "Opus 5 (1M context)" would parse
   // as a one-minute window.
-  function limitWindow(label, percent, resetAt, title) {
+  function limitWindow(label, percent, resetAt, title, countText) {
     return {
       title: String(title || "") !== "" ? String(title) : windowTitle(label),
       percent: Number(percent),
-      resetAt: String(resetAt || "")
+      resetAt: String(resetAt || ""),
+      // Count-based quotas (web-search calls, not tokens) read better as
+      // "7 / 1000" than as a percentage of an allowance nobody thinks of
+      // fractionally. The meter still fills by percent.
+      countText: String(countText || "")
     }
   }
 
@@ -116,7 +120,7 @@ Panel {
     for (var i = 0; i < list.length; i++) {
       var entry = list[i] || {}
       var percent = Number(entry.percent)
-      if (percent >= 0) out.push(limitWindow(entry.label, percent, entry.resetsAt, entry.title))
+      if (percent >= 0) out.push(limitWindow(entry.label, percent, entry.resetsAt, entry.title, entry.countText))
     }
     return out
   }
@@ -725,9 +729,11 @@ Panel {
 
       Text {
         id: limitValue
-        text: limitRow.window && limitRow.window.percent >= 0
-          ? Math.round(limitRow.window.percent * 100) + "%"
-          : "—"
+        text: limitRow.window && limitRow.window.countText !== ""
+          ? limitRow.window.countText
+          : (limitRow.window && limitRow.window.percent >= 0
+            ? Math.round(limitRow.window.percent * 100) + "%"
+            : "—")
         color: limitRow.alarming ? root.urgent : root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
