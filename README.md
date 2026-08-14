@@ -4,15 +4,16 @@ Custom drop-in replacement for Omarchy's first-party agents panel
 (`omarchy.agents`), installed as the `<username>.agents` plugin slot, plus
 user-side usage collectors the panel drives on its own refresh cadence.
 
-> **Personal config, published as reference.** This encodes this machine's
-> setup: Claude Code running on a Z.ai coding plan via `ANTHROPIC_AUTH_TOKEN`
-> (no Anthropic OAuth). Most people sign into Claude with OAuth and don't use
-> Z.ai — for them the claude transform would do nothing (harmless, it only
-> fires on "Waiting for auth") and the zai collector would never produce a
-> record, but the frozen plugin copy would still cost them upstream panel
-> updates. Fork/steal what's useful. The generally-useful pieces belong
-> upstream instead: a `zai` collector + assets in basecamp/omarchy (template:
-> Fireworks PR #6488), and API-key awareness in the claude collector.
+> **A personal plugin, but an extensible one.** It ships my providers —
+> Z.ai quotas and an API-key Claude Code (no Anthropic OAuth) — and yours
+> will differ. The design point is that *providers don't require forking
+> anything*: the panel renders whatever JSON records land in the usage
+> directory, and [`AGENTS.md`](AGENTS.md) is a complete protocol for an AI
+> agent to research your provider's usage API and add its collector
+> end to end. Fork this, run `./install.sh`, then just ask an agent to
+> "add a provider for \<your service\>" in the repo. The architecture
+> (orchestrator + record contract) is the reusable part; the collectors are
+> examples.
 
 ## What this adds over the stock plugin
 
