@@ -44,9 +44,29 @@ Item {
       if (name.slice(-5) === ".json") ids.push(name.slice(0, -5))
     }
     ids.sort()
+    ids = applyProviderOrder(ids)
     // Same list, same objects: reassigning the model would tear down every
     // FileView just to build identical ones.
     if (JSON.stringify(ids) !== JSON.stringify(agentIds)) agentIds = ids
+  }
+
+  // Tab order: providerOrder lists ids explicitly (listed first, in that
+  // order; unlisted stay alphabetical after them). providers[0] is the tab
+  // the panel opens on and the first switcher chip, so the first entry is
+  // the default tab.
+  function applyProviderOrder(ids) {
+    var raw = setting("providerOrder", ["zai", "claude", "codex", "fireworks"])
+    var order = []
+    for (var i = 0; i < raw.length; i++) order.push(String(raw[i]))
+    if (order.length === 0) return ids
+    var rank = {}
+    for (var j = 0; j < order.length; j++) rank[order[j]] = j
+    return ids.slice().sort(function(a, b) {
+      var ra = rank[a] !== undefined ? rank[a] : order.length
+      var rb = rank[b] !== undefined ? rank[b] : order.length
+      if (ra !== rb) return ra - rb
+      return a < b ? -1 : (a > b ? 1 : 0)
+    })
   }
 
   Instantiator {

@@ -35,6 +35,7 @@
         }
       },
       "refreshIntervalSec": 900,
+      "providerOrder": ["zai", "claude", "codex", "fireworks"],
       "syncMode": "Off",
       "syncDir": "",
       "syncFileName": "",
