@@ -1,0 +1,27 @@
+#!/bin/bash
+# Rewrite the claude agent record so the agents panel stops demanding OAuth.
+# Claude Code here runs on an API key (ANTHROPIC_AUTH_TOKEN against Z.ai), so
+# there is no OAuth usage endpoint and "Waiting for auth" is permanent noise.
+# Clearing usageStatusText hides the red card; tierLabel "API key" makes the
+# hero read "Claude Code · API key" instead of a plan this machine has.
+#
+# Idempotent by design: it exits without writing when nothing needs changing,
+# so the systemd path unit that watches the file does not loop.
+
+set -u
+
+USAGE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/usage"
+FILE="$USAGE_DIR/claude.json"
+[[ -f $FILE ]] || exit 0
+
+status=$(jq -r '.usageStatusText // ""' "$FILE" 2>/dev/null)
+if [[ $status != "Waiting for auth" ]]; then
+  exit 0
+fi
+
+tmp=$(mktemp "$USAGE_DIR/.claude-fixup.XXXXXX") || exit 1
+if ! jq '.usageStatusText = "" | .authHelpText = "" | .tierLabel = "API key"' "$FILE" >"$tmp"; then
+  rm -f "$tmp"
+  exit 1
+fi
+mv "$tmp" "$FILE"

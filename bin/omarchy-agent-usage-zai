@@ -1,0 +1,226 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Z.ai GLM Coding Plan usage record as JSON
+"""Collect Z.ai GLM Coding Plan usage into one display-ready JSON record.
+
+Quota meters come from the same monitor endpoints the Z.ai subscription
+dashboard uses: /api/monitor/usage/quota/limit gives the 5-hour session and
+7-day weekly token percentages plus the monthly web-search count, and
+/api/biz/subscription/list names the plan. The agents panel only ever reads
+the JSON this prints; run it through a timer or the packaged
+omarchy-agent-usage-update, which writes it into
+~/.local/state/omarchy/agents/usage/zai.json.
+
+The API key is read from ZAI_API_KEY, ~/.config/zai/key.json, or (when Claude
+Code is pointed at Z.ai) ANTHROPIC_AUTH_TOKEN in ~/.claude/settings.json.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+AGENT_ID = "zai"
+AGENT_NAME = "Z.ai"
+API_BASE_URL = "https://api.z.ai"
+
+# Enum values seen in the wild: (number, unit) 3=hour, 4=day, 5=month(?),
+# 6=week. The labels below only need the window length, so unknown codes fall
+# back to classifying by how far away the reset is.
+UNIT_SECONDS = {1: 1, 2: 60, 3: 3600, 4: 86400, 5: 2592000, 6: 604800}
+
+
+class ZaiError(Exception):
+  pass
+
+
+def api_key() -> str:
+  env = os.environ.get("ZAI_API_KEY") or os.environ.get("GLM_API_KEY")
+  if env:
+    return env.strip()
+
+  key_file = Path.home() / ".config" / "zai" / "key.json"
+  try:
+    data = json.loads(key_file.read_text())
+    key = str(data.get("apiKey") or "").strip()
+    if key:
+      return key
+  except (OSError, ValueError):
+    pass
+
+  # Claude Code on a Z.ai coding plan carries the same key as the auth token.
+  settings = Path.home() / ".claude" / "settings.json"
+  try:
+    data = json.loads(settings.read_text())
+    env_block = data.get("env") or {}
+    base = str(env_block.get("ANTHROPIC_BASE_URL") or "")
+    token = str(env_block.get("ANTHROPIC_AUTH_TOKEN") or "").strip()
+    if token and "z.ai" in base:
+      return token
+  except (OSError, ValueError):
+    pass
+
+  raise ZaiError("no Z.ai API key found")
+
+
+def get_json(path: str, key: str, timeout: int = 15) -> Any:
+  request = urllib.request.Request(
+    API_BASE_URL + path, headers={"Authorization": "Bearer " + key}
+  )
+  try:
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+      payload = json.loads(response.read().decode("utf-8", "replace"))
+  except urllib.error.HTTPError as e:
+    if e.code in (401, 403):
+      raise ZaiError("auth")
+    raise ZaiError(f"http {e.code}")
+  except (urllib.error.URLError, OSError, ValueError) as e:
+    raise ZaiError(f"network: {e}")
+
+  if not payload.get("success", True):
+    raise ZaiError(str(payload.get("msg") or "request rejected"))
+  return payload.get("data")
+
+
+def iso_from_epoch_ms(value: Any) -> str:
+  try:
+    ms = int(value)
+    if ms <= 0:
+      return ""
+    return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).isoformat()
+  except (TypeError, ValueError, OSError):
+    return ""
+
+
+def window_seconds(entry: dict[str, Any]) -> float:
+  unit = UNIT_SECONDS.get(int(entry.get("unit") or 0), 0)
+  if unit:
+    return unit * max(1, int(entry.get("number") or 1))
+  # Unknown unit code: fall back to the distance to the next reset.
+  try:
+    ms = int(entry.get("nextResetTime") or 0)
+    return max(0.0, ms / 1000 - datetime.now(timezone.utc).timestamp())
+  except (TypeError, ValueError):
+    return 0.0
+
+
+def limit_row(entry: dict[str, Any]) -> dict[str, Any] | None:
+  kind = str(entry.get("type") or "")
+  resets_at = iso_from_epoch_ms(entry.get("nextResetTime"))
+
+  if kind == "TIME_LIMIT":
+    # Web searches are a count, not a percentage of tokens; derive the meter
+    # from used/allowance so small usage is not lost to integer rounding.
+    allowance = float(entry.get("usage") or 0)
+    used = float(entry.get("currentValue") or 0)
+    if allowance <= 0:
+      return None
+    return {
+      "label": "Web searches (monthly)",
+      "percent": min(1.0, used / allowance),
+      "resetsAt": resets_at,
+    }
+
+  if kind != "TOKENS_LIMIT":
+    return None
+
+  seconds = window_seconds(entry)
+  if seconds and seconds > 129600:  # past a day and a half, call it weekly
+    label = "Weekly (7-day)" if 518400 <= seconds <= 691200 else f"Weekly ({round(seconds / 86400)}-day)"
+  else:
+    label = "Session (5-hour)" if 14400 <= seconds <= 21600 else f"Session ({max(1, round(seconds / 3600))}-hour)"
+
+  try:
+    percent = float(entry.get("percentage") or 0) / 100.0
+  except (TypeError, ValueError):
+    return None
+  if percent < 0:
+    return None
+  return {"label": label, "percent": percent, "resetsAt": resets_at}
+
+
+def plan_label(subscriptions: Any, quota: Any) -> str:
+  level = str((quota or {}).get("level") or "").strip()
+  if isinstance(subscriptions, list):
+    for item in subscriptions:
+      if not isinstance(item, dict) or item.get("status") != "VALID":
+        continue
+      name = str(item.get("productName") or "").strip()
+      if name:
+        return name
+  return (level or "Coding Plan").title()
+
+
+def base_record() -> dict[str, Any]:
+  return {
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "schemaVersion": 1,
+    "ready": True,
+    "hasLocalStats": False,
+    "tierLabel": "",
+    "limits": [],
+    "recentDays": [],
+    "modelUsage": {},
+    "todayTokensByModel": {},
+    "todayPrompts": 0,
+    "todaySessions": 0,
+    "todayTotalTokens": 0,
+    "totalPrompts": 0,
+    "totalSessions": 0,
+    "activeDays": 0,
+    "activeDates": [],
+    "updatedAt": datetime.now(timezone.utc).isoformat(),
+    "usageStatusText": "",
+  }
+
+
+def collect() -> dict[str, Any]:
+  record = base_record()
+  key = api_key()
+
+  try:
+    quota = get_json("/api/monitor/usage/quota/limit", key)
+  except ZaiError as e:
+    if str(e) == "auth":
+      record["usageStatusText"] = "API key rejected"
+      record["authHelpText"] = "Set ZAI_API_KEY or re-sign in to Z.ai (the key in ~/.claude/settings.json was refused)."
+      return record
+    raise
+
+  record["tierLabel"] = plan_label(None, quota)
+  for entry in (quota or {}).get("limits") or []:
+    row = limit_row(entry) if isinstance(entry, dict) else None
+    if row:
+      record["limits"].append(row)
+
+  # Plan name is cosmetic; a failure here must not blank the meters.
+  try:
+    record["tierLabel"] = plan_label(get_json("/api/biz/subscription/list", key), quota)
+  except ZaiError:
+    pass
+
+  # usageStatusText must stay empty when things are fine: the panel renders
+  # any non-empty value as an urgent (red) status card. The hero's tierLabel
+  # already says what plan this is.
+  return record
+
+
+def main() -> int:
+  record = collect()
+  json.dump(record, sys.stdout, indent=2)
+  print()
+  return 0
+
+
+if __name__ == "__main__":
+  try:
+    sys.exit(main())
+  except ZaiError as e:
+    print(f"omarchy-agent-usage-zai: {e}", file=sys.stderr)
+    sys.exit(1)

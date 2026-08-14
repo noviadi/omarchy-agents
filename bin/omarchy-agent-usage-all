@@ -1,0 +1,89 @@
+#!/bin/bash
+
+# One refresh entry point for the (cloned) agents panel: run the packaged
+# collectors, then any user collectors in ~/.local/bin, then tidy up the
+# claude record for API-key machines. The panel calls this instead of the
+# packaged omarchy-agent-usage-update, passing the same flags:
+#   [--force] [--limits-only] [--except <agent>] [agent...]
+#
+# User collectors follow the packaged contract: an executable named
+# omarchy-agent-usage-<agent> in ~/.local/bin that prints one display-ready
+# JSON record. Adding a provider = dropping one file there.
+
+set -u
+
+PACKAGED_UPDATE=/usr/share/omarchy/bin/omarchy-agent-usage-update
+USAGE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/usage"
+USER_BIN="${HOME}/.local/bin"
+
+flags=()
+only=()
+declare -A excluded
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+  --force | --limits-only) flags+=("$1") ;;
+  --except)
+    excluded[$2]=1
+    shift
+    ;;
+  *) only+=("$1") ;;
+  esac
+  shift
+done
+
+wanted() {
+  local agent="$1"
+  [[ -n ${excluded[$agent]:-} ]] && return 1
+  (( ${#only[@]} == 0 )) && return 0
+  local candidate
+  for candidate in "${only[@]}"; do
+    [[ $candidate == "$agent" ]] && return 0
+  done
+  return 1
+}
+
+write_record() {
+  local agent="$1" record="$2" tmp
+  tmp=$(mktemp "$USAGE_DIR/.$agent.XXXXXX") || return 1
+  printf '%s\n' "$record" >"$tmp"
+  mv "$tmp" "$USAGE_DIR/$agent.json"
+}
+
+collect() {
+  local collector="$1" agent="$2" record
+  if ! record=$("$collector" "${flags[@]}" 2>/dev/null) || [[ -z $record ]] || ! jq -e . >/dev/null 2>&1 <<<"$record"; then
+    echo "omarchy-agent-usage-all: $agent collector failed" >&2
+    return 1
+  fi
+  write_record "$agent" "$record"
+}
+
+# --- packaged providers (claude, codex, fireworks, ...) ---------------------
+"$PACKAGED_UPDATE" "$@"
+packaged_status=$?
+
+# --- user providers ----------------------------------------------------------
+pids=()
+for collector in "$USER_BIN"/omarchy-agent-usage-*; do
+  [[ -x $collector ]] || continue
+  agent="${collector##*/omarchy-agent-usage-}"
+  # Helper scripts that are not collectors, and the orchestrator itself.
+  [[ $agent == "all" || $agent == "update" ]] && continue
+  wanted "$agent" || continue
+  collect "$collector" "$agent" &
+  pids+=($!)
+done
+
+status=$packaged_status
+for pid in "${pids[@]}"; do
+  wait "$pid" || status=1
+done
+
+# --- cosmetic fixes ----------------------------------------------------------
+# Claude Code on an API key has no OAuth usage endpoint, so the packaged
+# collector permanently reports "Waiting for auth". Rewrite that record to a
+# neutral "API key" hero. Idempotent: exits 0 without writing when clean.
+[[ -x $USER_BIN/omarchy-agent-claude-apikey-fixup ]] && "$USER_BIN/omarchy-agent-claude-apikey-fixup"
+
+exit $status
