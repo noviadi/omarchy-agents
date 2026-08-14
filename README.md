@@ -14,13 +14,15 @@ a provider's usage API and wire it in for you.
 
 | Feature | What you get |
 |---|---|
-| **Z.ai provider** | Session (5-hour) and weekly quota meters, monthly tool-call count ("7 / 1000"), GLM Coding plan label, brand mark |
-| **API-key Claude** | Claude Code on an API key shows a neutral "API key" hero instead of the permanent OAuth "Waiting for auth" warning — transformed in-flight, so the warning never even flashes |
-| **Unified cadence** | One orchestrator (`omarchy-agent-usage-all`) runs the packaged collectors *and* user collectors on the panel's native refresh (timer, manual `r`, network retry) — no side timers |
-| **Pace tick** | Opt-in (`showPace`): a tick on each meter marks where linear usage *should* be; fill past the tick = burning faster than the window replenishes |
-| **Tab order** | `providerOrder` setting; first entry is the tab the panel opens on |
-| **Count-based limits** | `countText` on a limit row shows "7 / 1000" instead of a misleading percentage |
-| **Graceful degradation** | Without the installer's scripts (e.g. marketplace `plugin add` alone), the panel detects the missing orchestrator and falls back to stock behavior |
+| **Z.ai provider** | Quota meters for the GLM Coding Plan (session, weekly, monthly tool calls) with plan label and brand mark |
+| **API-key Claude** | Claude Code on an API key shows a neutral "API key" hero instead of the permanent OAuth "Waiting for auth" warning |
+| **Unified cadence** | One orchestrator runs the packaged collectors *and* any user collectors on the panel's native refresh (timer, manual `r`, network retry) — no side timers, no systemd units |
+| **Extensible by asking** | Adding a provider is one script; [`AGENTS.md`](AGENTS.md) is the protocol an AI agent follows to research the usage API and wire it in |
+
+Smaller refinements — configurable tab order, opt-in pace tick on the
+meters, count-based limits shown as counts, graceful fallback without the
+scripts — are itemized in [`docs/CHANGES.md`](docs/CHANGES.md), the
+complete difference list against the stock plugin.
 
 > **Personal config, published as reference.** The collectors encode my
 > setup (Claude Code on a Z.ai plan, no Anthropic OAuth); yours will differ —
@@ -77,6 +79,7 @@ the file directly.
 
 | Doc | Contents |
 |---|---|
+| [`docs/CHANGES.md`](docs/CHANGES.md) | Complete difference list vs the stock agents plugin (release notes) |
 | [`docs/INSTALL.md`](docs/INSTALL.md) | Install paths (full / marketplace), updating, removal, syncing with upstream Omarchy |
 | [`AGENTS.md`](AGENTS.md) | Provider protocol: record schema, collector contract, research playbook |
 | [`docs/PANEL.md`](docs/PANEL.md) | The upstream agents panel README (Omarchy 4.0.0), kept for reference |
