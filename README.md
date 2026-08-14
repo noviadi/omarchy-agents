@@ -69,6 +69,18 @@ Re-run `./install.sh` after editing anything in this repo. Plugin-code
 changes need the shell restart the script performs; `bin/` scripts are
 picked up on the next refresh without one.
 
+### Remove
+
+```bash
+omarchy plugin remove "$(id -un).agents"   # delete the plugin slot, bar falls back to stock omarchy.agents
+rm -f ~/.local/bin/omarchy-agent-usage-{all,zai} ~/.local/bin/omarchy-agent-claude-apikey-fixup
+rm -rf ~/.local/state/omarchy/agents/usage/zai.json   # optional: drop the Z.ai record
+```
+
+After removal the stock agents panel takes the bar slot back on the next
+shell restart; claude/codex/fireworks records keep refreshing from the
+packaged collectors.
+
 ## Adding another provider
 
 Point an AI agent at [`AGENTS.md`](AGENTS.md) — it contains the full
