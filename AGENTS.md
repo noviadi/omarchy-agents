@@ -13,7 +13,7 @@ For auth-from-a-sibling-CLI patterns, see how it reads
 ## Architecture (what calls what)
 
 ```
-panel (plugin/Main.qml, patched)
+panel (Main.qml, patched)
   └─ omarchy-agent-usage-all            ← orchestrator (bin/)
        ├─ /usr/share/omarchy/bin/omarchy-agent-usage-update   (built-in codex/fireworks/…)
        ├─ built-in claude collector, output transformed in-flight
@@ -103,8 +103,8 @@ instead set `balance: {remaining, funded, currency, spent, estimated}`.
 
 ## 3. Brand mark (optional)
 
-`plugin/assets/<id>.svg` (light mark for dark surfaces) and optionally
-`plugin/assets/<id>-light.svg` (dark mark for light surfaces). Any plain
+`assets/<id>.svg` (light mark for dark surfaces) and optionally
+`assets/<id>-light.svg` (dark mark for light surfaces). Any plain
 SVG, any viewBox; check Simple Icons first (CC0). Without a mark the panel
 falls back to a text glyph.
 
@@ -120,7 +120,7 @@ omarchy-shell omarchy.agents refresh          # force the panel to pick it up
 
 Then open the panel (click the bar widget) and confirm: hero shows name +
 tierLabel, meters render with sane percentages, no red card when healthy.
-`bin/`-only changes need no shell restart; `plugin/` changes do
+`bin/`-only changes need no shell restart; QML/asset changes do
 (`./install.sh` handles it).
 
 ## Never

@@ -109,6 +109,7 @@ Item {
 
   Component.onCompleted: {
     rescanAgents()
+    orchestratorProbe.running = true
     if (syncConfigured()) scheduleSync()
   }
 
@@ -116,6 +117,8 @@ Item {
 
   property int refreshIntervalSec: Math.max(30, Number(setting("refreshIntervalSec", 900)))
   property string pendingUpdateKind: ""
+  property bool probeDone: false
+  property bool orchestratorReady: false
 
   Timer {
     interval: root.refreshIntervalSec * 1000
@@ -128,7 +131,15 @@ Item {
   Process {
     id: updateProcess
     running: false
-    onExited: {
+    onExited: function(exitCode) {
+      // The orchestrator lives in ~/.local/bin, which a plugin-only install
+      // (omarchy plugin add) never deploys. If it vanished, fall back to the
+      // packaged update so the stock providers keep flowing instead of the
+      // whole widget going dark.
+      if (root.probeDone && root.orchestratorReady && exitCode === 127) {
+        console.warn("agents", "omarchy-agent-usage-all not found; falling back to the packaged update")
+        root.orchestratorReady = false
+      }
       root.rescanAgents()
       if (root.pendingUpdateKind !== "") {
         var kind = root.pendingUpdateKind
@@ -143,12 +154,29 @@ Item {
     }
   }
 
+  // One startup probe decides which refresh command exists; the panel must
+  // not fire an update before it knows, or a plugin-only install would burn
+  // its first (triggered-on-start) refresh on a missing binary.
+  Process {
+    id: orchestratorProbe
+    running: false
+    command: ["sh", "-c", "command -v omarchy-agent-usage-all >/dev/null 2>&1"]
+    onExited: function(exitCode) {
+      root.probeDone = true
+      root.orchestratorReady = exitCode === 0
+      var kind = root.pendingUpdateKind !== "" ? root.pendingUpdateKind : "normal"
+      root.pendingUpdateKind = ""
+      root.runUpdate(kind)
+    }
+  }
+
   function updateCommand(kind, agentIds) {
     // omarchy-agent-usage-all (from the omarchy-agents repo) wraps the
     // packaged omarchy-agent-usage-update and adds the user collectors in
     // ~/.local/bin/omarchy-agent-usage-*, so this panel drives every
-    // provider on one cadence. Same flags, same record contract.
-    var command = ["omarchy-agent-usage-all"]
+    // provider on one cadence. Same flags, same record contract. Without it
+    // (plugin-only install), the packaged update keeps the stock providers.
+    var command = [root.orchestratorReady ? "omarchy-agent-usage-all" : "omarchy-agent-usage-update"]
     if (kind === "force") command.push("--force")
     if (kind === "limits") command.push("--limits-only")
     var providers = settings && settings.providers ? settings.providers : {}
@@ -162,6 +190,13 @@ Item {
   }
 
   function runUpdate(kind, agentIds) {
+    // Before the startup probe settles, park the request — the initial
+    // refresh (timer triggeredOnStart) would otherwise race the probe and
+    // possibly run a command that does not exist.
+    if (!probeDone) {
+      if (pendingUpdateKind === "" || kind === "force") pendingUpdateKind = kind
+      return
+    }
     if (updateProcess.running) {
       // Collapse queued requests to one full rerun; a forced refresh outranks
       // the cheaper kinds it might have been queued behind.

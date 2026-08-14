@@ -25,9 +25,11 @@ done
 if ! grep -q "\"$PLUGIN_ID\"" "$HOME/.config/omarchy/shell.json" 2>/dev/null; then
   omarchy plugin clone omarchy.agents
 fi
+# The repo root IS the plugin (manifest at root, so `omarchy plugin add`
+# works too); copy only the plugin payload, not the repo tooling.
 mkdir -p "$PLUGIN_DEST"
 rm -rf "${PLUGIN_DEST:?}"/*
-cp -r "$REPO_DIR/plugin/." "$PLUGIN_DEST/"
+cp -r "$REPO_DIR/manifest.json" "$REPO_DIR"/*.qml "$REPO_DIR/assets" "$PLUGIN_DEST/"
 
 # --- legacy systemd units ----------------------------------------------------
 # Refresh now flows through the panel's own timer calling
