@@ -70,16 +70,12 @@ picked up on the next refresh without one.
 
 ## Adding another provider
 
-1. Drop an executable `omarchy-agent-usage-<id>` in `bin/` (and
-   `~/.local/bin/`) that prints one record following the schema of the zai
-   collector: `id`, `name`, `tierLabel`, `limits[]`
-   (`{label, percent 0..1, resetsAt ISO}`), `recentDays`, `modelUsage`, …
-   Keep `usageStatusText` empty when healthy — any non-empty value renders
-   as a red urgent card.
-2. Optionally add `plugin/assets/<id>.svg` (+ `<id>-light.svg` for light
-   surfaces).
-3. Re-run `./install.sh`. The panel discovers the new `usage/<id>.json` on
-   its next refresh.
+Point an AI agent at [`AGENTS.md`](AGENTS.md) — it contains the full
+protocol: research the provider's usage API, write the collector, verify it
+end to end. By hand: an executable `omarchy-agent-usage-<id>` in `bin/`
+that prints one record (schema in `AGENTS.md`), optionally
+`plugin/assets/<id>.svg`, then `./install.sh`. The panel discovers the new
+`usage/<id>.json` on its next refresh.
 
 ## Sync with upstream
 
